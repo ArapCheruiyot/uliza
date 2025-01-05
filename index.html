@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive File Uploader</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Google Drive File Uploader</h1>
+        <button id="authorize-btn">Authorize Google Drive</button>
+        <div id="notification"></div>
+        
+        <div id="upload-section" class="hidden">
+            <h2>Select Files to Upload</h2>
+            <input type="file" id="file-input" multiple accept=".xlsx,.xls">
+            <ul id="file-list"></ul>
+            <button id="upload-btn" disabled>Upload Files</button>
+            <div class="progress-bar">
+                <div id="progress"></div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
