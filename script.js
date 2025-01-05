@@ -1,103 +1,108 @@
-const CLIENT_ID = 'YOUR_CLIENT_ID_HERE';
-const API_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const CLIENT_ID = '691057096384-74gruqqkglv1urlp8f96vlfib22asrap.apps.googleusercontent.com'; // Replace with your Google Client ID
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
 let folderId = null;
 
-document.getElementById('authorize-btn').addEventListener('click', () => {
-    gapi.load('client:auth2', () => {
-        gapi.auth2.init({ client_id: CLIENT_ID }).then(() => {
-            gapi.auth2.getAuthInstance().signIn().then(initApp);
-        });
-    });
-});
-
-function initApp() {
-    gapi.client.load('drive', 'v3').then(() => {
-        checkOrCreateFolder();
-        document.getElementById('upload-section').classList.remove('hidden');
-    });
+// Load the Google API Client
+function loadGoogleApi() {
+  gapi.load('client:auth2', () => {
+    gapi.auth2.init({ client_id: CLIENT_ID, scope: SCOPES })
+      .then(() => console.log('Google API Client Initialized'))
+      .catch(error => console.error('Error initializing Google API Client:', error));
+  });
 }
 
-function checkOrCreateFolder() {
-    gapi.client.drive.files.list({
-        q: "name='offers' and mimeType='application/vnd.google-apps.folder'",
-        spaces: 'drive'
-    }).then(response => {
-        const files = response.result.files;
-        if (files.length) {
-            folderId = files[0].id;
-            document.getElementById('notification').textContent = 'Folder "offers" exists.';
-        } else {
-            createOffersFolder();
-        }
-    });
+// Authenticate the user
+function authenticateUser() {
+  gapi.auth2.getAuthInstance().signIn()
+    .then(() => {
+      console.log('User authenticated');
+      document.getElementById('file-upload-section').style.display = 'block';
+    })
+    .catch(error => console.error('Authentication error:', error));
 }
 
-function createOffersFolder() {
+// Check or create the "Offers" folder
+async function checkOrCreateFolder() {
+  try {
+    const response = await gapi.client.drive.files.list({
+      q: "name='Offers' and mimeType='application/vnd.google-apps.folder'",
+      fields: 'files(id, name)',
+    });
+
+    if (response.result.files && response.result.files.length > 0) {
+      folderId = response.result.files[0].id;
+      console.log('Offers folder exists:', folderId);
+    } else {
+      const createResponse = await gapi.client.drive.files.create({
+        resource: {
+          name: 'Offers',
+          mimeType: 'application/vnd.google-apps.folder',
+        },
+        fields: 'id',
+      });
+      folderId = createResponse.result.id;
+      console.log('Offers folder created:', folderId);
+    }
+  } catch (error) {
+    console.error('Error checking or creating folder:', error);
+  }
+}
+
+// Upload file to the "Offers" folder
+async function uploadFile(file) {
+  try {
     const metadata = {
-        name: 'offers',
-        mimeType: 'application/vnd.google-apps.folder'
+      name: file.name,
+      parents: [folderId],
     };
-    gapi.client.drive.files.create({
-        resource: metadata,
-        fields: 'id'
-    }).then(response => {
-        folderId = response.result.id;
-        document.getElementById('notification').textContent = 'Folder "offers" created.';
-    });
-}
 
-const fileInput = document.getElementById('file-input');
-const fileList = document.getElementById('file-list');
-const uploadBtn = document.getElementById('upload-btn');
-const progress = document.getElementById('progress');
-
-fileInput.addEventListener('change', () => {
-    fileList.innerHTML = '';
-    Array.from(fileInput.files).forEach((file, index) => {
-        const listItem = document.createElement('li');
-        listItem.textContent = file.name;
-
-        const removeBtn = document.createElement('button');
-        removeBtn.textContent = 'Remove';
-        removeBtn.addEventListener('click', () => {
-            fileInput.files = removeFile(fileInput.files, index);
-            listItem.remove();
-        });
-
-        listItem.appendChild(removeBtn);
-        fileList.appendChild(listItem);
-    });
-    uploadBtn.disabled = !fileInput.files.length;
-});
-
-uploadBtn.addEventListener('click', () => {
-    Array.from(fileInput.files).forEach(uploadFile);
-});
-
-function uploadFile(file) {
-    const metadata = {
-        name: file.name,
-        parents: [folderId]
-    };
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', file);
 
-    gapi.client.request({
-        path: '/upload/drive/v3/files?uploadType=multipart',
-        method: 'POST',
-        body: form
-    }).then(() => {
-        progress.style.width = '100%';
-        alert(`${file.name} uploaded successfully!`);
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: new Headers({ Authorization: `Bearer ${gapi.auth.getToken().access_token}` }),
+      body: form,
     });
+
+    if (response.ok) {
+      console.log('File uploaded:', await response.json());
+    } else {
+      console.error('Error uploading file:', await response.json());
+    }
+  } catch (error) {
+    console.error('Upload error:', error);
+  }
 }
 
-function removeFile(files, index) {
-    const dataTransfer = new DataTransfer();
-    Array.from(files).forEach((file, i) => {
-        if (i !== index) dataTransfer.items.add(file);
-    });
-    return dataTransfer.files;
+// Handle file selection and upload
+async function handleFileUpload(event) {
+  const files = event.target.files;
+  if (files.length === 0) {
+    alert('Please select at least one file to upload.');
+    return;
+  }
+
+  document.getElementById('upload-progress').style.display = 'block';
+
+  await checkOrCreateFolder();
+
+  for (const file of files) {
+    await uploadFile(file);
+  }
+
+  document.getElementById('upload-progress').style.display = 'none';
+  alert('Files uploaded successfully!');
 }
+
+// Attach event listeners
+document.getElementById('authorize-button').addEventListener('click', authenticateUser);
+document.getElementById('file-input').addEventListener('change', handleFileUpload);
+document.getElementById('upload-button').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+// Load Google API on page load
+window.onload = loadGoogleApi;
